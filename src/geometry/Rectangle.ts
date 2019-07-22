@@ -1,4 +1,4 @@
-import Point, { IPointState } from './Point';
+import Point, { IPointState } from './Point.js';
 
 export interface IRectangleState {
   min: IPointState;

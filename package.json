@@ -1,17 +1,32 @@
 {
   "name": "threejs-canvas",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Canvas for rendering Three.js scenes with low-latency.",
+  "main": "src/index.ts",
+  "@pika/pack": {
+    "pipeline": [
+      [
+        "@pika/plugin-ts-standard-pkg"
+      ],
+      [
+        "@pika/plugin-build-web"
+      ]
+    ]
+  },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "version": "npx @pika/pack build"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "lit-element": "^2.2.0",
     "stylus-canvas": "^2.0.2",
     "three": "^0.106.2"
+  },
+  "devDependencies": {
+    "@pika/plugin-build-web": "^0.4.0",
+    "@pika/plugin-ts-standard-pkg": "^0.4.0",
+    "rollup": "^1.17.0",
+    "rollup-plugin-node-resolve": "^5.2.0"
   }
 }

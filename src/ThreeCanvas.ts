@@ -1,7 +1,7 @@
 import StylusCanvas from 'stylus-canvas';
 import * as THREE from 'three';
 
-import Rectangle from './geometry/Rectangle';
+import Rectangle from './geometry/Rectangle.js';
 
 export interface ScissorRect {
   x: number;
