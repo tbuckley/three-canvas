@@ -51263,64 +51263,44 @@ class Rectangle {
 
 class ThreeCanvas {
   constructor(canvas) {
-    var _this = this;
-
     this.canvas = canvas;
-    this.gl = canvas.updateComplete.then(() => {
-      return canvas.getContext('webgl2', {
-        alpha: false,
-        desynchronized: true,
-        preserveDrawingBuffer: true
-      });
+    this.gl = canvas.getContext('webgl2', {
+      alpha: false,
+      desynchronized: true,
+      preserveDrawingBuffer: true
     });
-    this.renderer = this.gl.then(gl => {
-      return createRenderer(gl, canvas.width, canvas.height);
-    });
+    this.renderer = createRenderer(this.gl, canvas.width, canvas.height);
     this.scene = createScene();
     this.camera = createCamera(-1, -1, 2, 2, 0);
-    canvas.addEventListener('canvas-rotate',
-    /*#__PURE__*/
-    _asyncToGenerator$1(function* () {
+    canvas.addEventListener('canvas-rotate', () => {
       // Rotate the camera
       var {
         rotation
-      } = _this.canvas;
+      } = this.canvas;
+      this.camera.setRotationFromAxisAngle(new Vector3(0, 0, 1), rotation * Math.PI / 180); // Inform the renderer
 
-      _this.camera.setRotationFromAxisAngle(new Vector3(0, 0, 1), rotation * Math.PI / 180); // Inform the renderer
-
-
-      var renderer = yield _this.renderer;
-      var [width, height] = rotateDimensions$1(_this.canvas.width, _this.canvas.height, rotation);
-      renderer.setSize(width, height);
-    }));
+      var [width, height] = rotateDimensions$1(this.canvas.width, this.canvas.height, rotation);
+      this.renderer.setSize(width, height);
+    });
   }
 
   renderWithScissor(screenRect) {
-    var _this2 = this;
-
-    return _asyncToGenerator$1(function* () {
-      var {
-        rotation,
-        clientWidth,
-        clientHeight
-      } = _this2.canvas;
-      var rect = rotateScissorRect(screenRect, clientWidth, clientHeight, rotation);
-      var renderer = yield _this2.renderer;
-      renderer.setScissorTest(true);
-      console.log(rect.min.x, rect.min.y, rect.width, rect.height);
-      renderer.setScissor(rect.min.x, rect.min.y, rect.width, rect.height);
-      yield _this2.render();
-      renderer.setScissorTest(false);
-    })();
+    var {
+      rotation,
+      clientWidth,
+      clientHeight
+    } = this.canvas;
+    var rect = rotateScissorRect(screenRect, clientWidth, clientHeight, rotation);
+    this.renderer.setScissorTest(true);
+    this.renderer.setScissor(rect.min.x, rect.min.y, rect.width, rect.height);
+    this.render();
+    this.renderer.setScissorTest(false);
   }
 
   render() {
-    var _this3 = this;
+    this.renderer.render(this.scene, this.camera); // Must call flush ourselves when using desynchronized
 
-    return _asyncToGenerator$1(function* () {
-      var renderer = yield _this3.renderer;
-      renderer.render(_this3.scene, _this3.camera);
-    })();
+    this.gl.flush();
   }
 
   setCameraBounds(x, y, width, height) {
@@ -51337,7 +51317,7 @@ function createRenderer(gl, width, height) {
     canvas: gl.canvas,
     context: gl,
     alpha: false,
-    clearColor: 0x000000
+    clearColor: 0xFF0000
   }); // TODO why isn't clearColor recognized?
 
   renderer.setPixelRatio(window.devicePixelRatio);
@@ -51411,6 +51391,19 @@ function rotateDimensions$1(width, height, rotation) {
   return [width, height];
 }
 
+function createThreeCanvas(_x) {
+  return _createThreeCanvas.apply(this, arguments);
+}
+
+function _createThreeCanvas() {
+  _createThreeCanvas = _asyncToGenerator$1(function* (canvas) {
+    yield customElements.whenDefined("stylus-canvas");
+    yield canvas.updateComplete;
+    return new ThreeCanvas(canvas);
+  });
+  return _createThreeCanvas.apply(this, arguments);
+}
+
 const LEFT = -9;
 const RIGHT = 9;
 const TOP = -9;
@@ -51418,12 +51411,13 @@ const BOTTOM = 9;
 
 async function main() {
     console.log(StylusCanvas$1);
-    await customElements.whenDefined("stylus-canvas");
 
     const canvas = document.querySelector("stylus-canvas");
     canvas.width = 400;
     canvas.height = 400;
-    const tc = new ThreeCanvas(canvas);
+
+    const tc = await createThreeCanvas(canvas);
+    tc.setCameraBounds(-10, -10, 20, 20);
 
     const material = new LineBasicMaterial( { color: 0x0000ff } );
     const geometry = new Geometry();
@@ -51435,12 +51429,7 @@ async function main() {
     const line = new Line( geometry, material );
     tc.scene.add(line);
 
-    tc.setCameraBounds(-10, -10, 20, 20);
-
     tc.render();
-
-    await sleep(500);
-    console.log("re-rendering");
 
     const geometry2 = new Geometry();
     geometry2.vertices.push(new Vector3( RIGHT, 0, 0) );
@@ -51451,22 +51440,20 @@ async function main() {
     tc.scene.add(line2);
 
     const INCR = 5;
-    for(let i = INCR; i <= 200; i += INCR) {
+    let position = INCR;
+    function draw() {
         tc.renderWithScissor({
-            x: i-INCR,
+            x: position-INCR,
             y: 200,
-            width: INCR,
+            width: INCR+1,
             height: 200,
         });
-        console.log(i-INCR, i);
-        await sleep(200);
+        if(position <= 400) {
+            position += INCR;
+            requestAnimationFrame(draw);
+        }
     }
-}
-
-function sleep(ms) {
-    return new Promise((resolve, reject) => {
-        setTimeout(resolve, ms);
-    });
+    requestAnimationFrame(draw);
 }
 
 main();

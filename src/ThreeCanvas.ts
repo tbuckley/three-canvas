@@ -11,8 +11,8 @@ export interface ScissorRect {
 }
 
 export default class ThreeCanvas {
-  private gl: Promise<WebGL2RenderingContext>;
-  private renderer: Promise<THREE.WebGLRenderer>;
+  private gl: WebGL2RenderingContext;
+  private renderer: THREE.WebGLRenderer;
   private canvas: StylusCanvas;
 
   scene: THREE.Scene;
@@ -21,49 +21,45 @@ export default class ThreeCanvas {
   constructor(canvas: StylusCanvas) {
     this.canvas = canvas;
 
-    this.gl = canvas.updateComplete.then(() => {
-      return canvas.getContext('webgl2', {
-        alpha: false, // TODO make optional
-        desynchronized: true,
-        preserveDrawingBuffer: true,
-      }) as WebGL2RenderingContext;
-    });
-    
-    this.renderer = this.gl.then((gl) => {
-      return createRenderer(gl, canvas.width, canvas.height);
-    });
+    this.gl = canvas.getContext('webgl2', {
+      alpha: false, // TODO make optional
+      desynchronized: true,
+      preserveDrawingBuffer: true,
+    }) as WebGL2RenderingContext;
+
+    this.renderer = createRenderer(this.gl, canvas.width, canvas.height);
 
     this.scene = createScene();
     this.camera = createCamera(-1, -1, 2, 2, 0);
 
-    canvas.addEventListener('canvas-rotate', async () => {
+    canvas.addEventListener('canvas-rotate', () => {
       // Rotate the camera
       const { rotation } = this.canvas;
       this.camera.setRotationFromAxisAngle(new THREE.Vector3(0, 0, 1), rotation * Math.PI / 180);
 
       // Inform the renderer
-      const renderer = await this.renderer;
       const [width, height] = rotateDimensions(this.canvas.width, this.canvas.height, rotation);
-      renderer.setSize(width, height);
+      this.renderer.setSize(width, height);
     });
   }
 
-  async renderWithScissor(screenRect: ScissorRect) {
+  renderWithScissor(screenRect: ScissorRect) {
     const { rotation, clientWidth, clientHeight } = this.canvas;
     const rect = rotateScissorRect(screenRect, clientWidth, clientHeight, rotation);
 
-    const renderer = await this.renderer;
-    renderer.setScissorTest(true);
-    renderer.setScissor(rect.min.x, rect.min.y, rect.width, rect.height);
+    this.renderer.setScissorTest(true);
+    this.renderer.setScissor(rect.min.x, rect.min.y, rect.width, rect.height);
 
-    await this.render();
+    this.render();
 
-    renderer.setScissorTest(false);
+    this.renderer.setScissorTest(false);
   }
 
-  async render() {
-    const renderer = await this.renderer;
-    renderer.render(this.scene, this.camera);
+  render() {
+    this.renderer.render(this.scene, this.camera);
+
+    // Must call flush ourselves when using desynchronized
+    this.gl.flush();
   }
 
   setCameraBounds(x: number, y: number, width: number, height: number) {
