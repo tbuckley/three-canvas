@@ -48,7 +48,7 @@ export default class ThreeCanvas {
     });
   }
 
-  async renderWithScissor(screenRect: ScissorRect, fn: () => void) {
+  async renderWithScissor(screenRect: ScissorRect) {
     const { rotation, clientWidth, clientHeight } = this.canvas;
     const rect = rotateScissorRect(screenRect, clientWidth, clientHeight, rotation);
 
@@ -56,7 +56,7 @@ export default class ThreeCanvas {
     renderer.setScissorTest(true);
     renderer.setScissor(rect.min.x, rect.min.y, rect.width, rect.height);
 
-    this.render();
+    await this.render();
 
     renderer.setScissorTest(false);
   }
