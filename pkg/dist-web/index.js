@@ -245,7 +245,7 @@ function createRenderer(gl, width, height) {
     canvas: gl.canvas,
     context: gl,
     alpha: false,
-    clearColor: 0xFF0000
+    clearColor: 0x000000
   }); // TODO why isn't clearColor recognized?
 
   renderer.setPixelRatio(window.devicePixelRatio);

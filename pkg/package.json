@@ -1,7 +1,7 @@
 {
-  "name": "threejs-canvas",
+  "name": "@tbuckley89/three-canvas",
   "description": "Canvas for rendering Three.js scenes with low-latency.",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "license": "ISC",
   "files": [
     "dist-*/",
