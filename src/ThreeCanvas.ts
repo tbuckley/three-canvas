@@ -1,25 +1,25 @@
 import StylusCanvas from 'stylus-canvas';
 import * as THREE from 'three';
 
-import Rectangle from './geometry/Rectangle.js';
-
-export interface ScissorRect {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
+import FenceManager from './FenceManager.js';
+import { ScissorRect, RenderRequestManager } from './ScissorRect';
 
 export default class ThreeCanvas {
   private gl: WebGL2RenderingContext;
   private renderer: THREE.WebGLRenderer;
   private canvas: StylusCanvas;
 
+  private fenceManager: FenceManager;
+  private renderRequestManager: RenderRequestManager;
+
   scene: THREE.Scene;
   camera: THREE.Camera;
 
   constructor(canvas: StylusCanvas) {
     this.canvas = canvas;
+
+    this.fenceManager = new FenceManager(2);
+    this.renderRequestManager = new RenderRequestManager();
 
     this.gl = canvas.getContext('webgl2', {
       alpha: false, // TODO make optional
@@ -28,7 +28,6 @@ export default class ThreeCanvas {
     }) as WebGL2RenderingContext;
 
     this.renderer = createRenderer(this.gl, canvas.width, canvas.height);
-
     this.scene = createScene();
     this.camera = createCamera(-1, -1, 2, 2, 0);
 
@@ -44,26 +43,39 @@ export default class ThreeCanvas {
   }
 
   renderWithScissor(screenRect: ScissorRect) {
-    const { rotation, clientWidth, clientHeight } = this.canvas;
-    const rect = rotateScissorRect(screenRect, clientWidth, clientHeight, rotation);
-
-    this.renderer.setScissorTest(true);
-    this.renderer.setScissor(rect.min.x, rect.min.y, rect.width, rect.height);
-
-    this.render();
-
-    this.renderer.setScissorTest(false);
+    this.renderRequestManager.renderWithScissor(screenRect);
+    this.fenceManager.drawWithFence(this.gl, () => {
+      this.renderInternal();
+    });
   }
 
   render() {
-    this.renderer.render(this.scene, this.camera);
+    this.renderRequestManager.render();
+    this.fenceManager.drawWithFence(this.gl, () => {
+      this.renderInternal();
+    });
+  }
 
+  private renderInternal() {
+    if(this.renderRequestManager.request.type == "scissor") {
+      const { rotation, clientWidth, clientHeight } = this.canvas;
+      const rect = this.renderRequestManager.getRotated(clientWidth, clientHeight, rotation)!;
+
+      this.renderer.setScissorTest(true);
+      this.renderer.setScissor(rect.min.x, rect.min.y, rect.width, rect.height);
+    } else {
+      this.renderer.setScissorTest(false);
+    }
+
+    this.renderer.render(this.scene, this.camera);
     // Must call flush ourselves when using desynchronized
     this.gl.flush();
+
+    this.renderRequestManager.reset();
   }
 
   setCameraBounds(x: number, y: number, width: number, height: number) {
-    const { rotation } = this.canvas;
+    const { rotation } = this.canvas;               
     this.camera = createCamera(x, y, width, height, rotation);
   }
 }
@@ -87,7 +99,7 @@ function createScene(): THREE.Scene {
   return scene;
 }
 
-export function createCamera(x: number, y: number, width: number, height: number, rotation: number): THREE.OrthographicCamera {
+function createCamera(x: number, y: number, width: number, height: number, rotation: number): THREE.OrthographicCamera {
   // Rotate width/height if needed
   if(rotation == 90 || rotation == 270) {
     [height, width] = [width, height];
@@ -106,37 +118,6 @@ export function createCamera(x: number, y: number, width: number, height: number
   camera.setRotationFromAxisAngle(new THREE.Vector3(0, 0, 1), rotation * Math.PI / 180);
 
   return camera;
-}
-
-function rotateScissorRect(scissorRect: ScissorRect, clientWidth: number, clientHeight: number, rotation: number): Rectangle {
-  const radians = -rotation * Math.PI / 180;
-
-  let rect = Rectangle.fromDimensions(scissorRect.width, scissorRect.height)
-    .shift({
-      x: scissorRect.x,
-      y: scissorRect.y,
-    });
-
-  switch (rotation) {
-    case 0:
-      return rect;
-
-    case 90:
-      return rect
-        .rotate(-rotation * Math.PI / 180)
-        .shift({ x: 0, y: clientWidth });
-
-    case 180:
-      return rect
-        .rotate(-rotation * Math.PI / 180)
-        .shift({ x: clientWidth, y: clientHeight });
-
-    case 270:
-      return rect
-        .rotate(-rotation * Math.PI / 180)
-        .shift({ x: clientHeight, y: 0 });
-  }
-  throw new Error(`unsupported rotation: ${rotation}`);
 }
 
 function rotateDimensions(width: number, height: number, rotation: number): [number, number] {

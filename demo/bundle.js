@@ -48423,7 +48423,6 @@ const directives = new WeakMap();
 const isDirective = (o) => {
     return typeof o === 'function' && directives.has(o);
 };
-//# sourceMappingURL=directive.js.map
 
 /**
  * @license
@@ -48455,7 +48454,6 @@ const removeNodes = (container, start, end = null) => {
         start = n;
     }
 };
-//# sourceMappingURL=dom.js.map
 
 /**
  * @license
@@ -48479,7 +48477,6 @@ const noChange = {};
  * A sentinel value that signals a NodePart to fully clear its content.
  */
 const nothing = {};
-//# sourceMappingURL=part.js.map
 
 /**
  * @license
@@ -48693,7 +48690,6 @@ const createMarker = () => document.createComment('');
  *    * (') then any non-(')
  */
 const lastAttributeNameRegex = /([ \x09\x0a\x0c\x0d])([^\0-\x1F\x7F-\x9F "'>=/]+)([ \x09\x0a\x0c\x0d]*=[ \x09\x0a\x0c\x0d]*(?:[^ \x09\x0a\x0c\x0d"'`<>=]*|"[^"]*|'[^']*))$/;
-//# sourceMappingURL=template.js.map
 
 /**
  * @license
@@ -48826,7 +48822,6 @@ class TemplateInstance {
         return fragment;
     }
 }
-//# sourceMappingURL=template-instance.js.map
 
 /**
  * @license
@@ -48914,7 +48909,6 @@ class TemplateResult {
         return template;
     }
 }
-//# sourceMappingURL=template-result.js.map
 
 /**
  * @license
@@ -49354,7 +49348,6 @@ const getOptions = (o) => o &&
     (eventOptionsSupported ?
         { capture: o.capture, passive: o.passive, once: o.once } :
         o.capture);
-//# sourceMappingURL=parts.js.map
 
 /**
  * @license
@@ -49406,7 +49399,6 @@ class DefaultTemplateProcessor {
     }
 }
 const defaultTemplateProcessor = new DefaultTemplateProcessor();
-//# sourceMappingURL=default-template-processor.js.map
 
 /**
  * @license
@@ -49454,7 +49446,6 @@ function templateFactory(result) {
     return template;
 }
 const templateCaches = new Map();
-//# sourceMappingURL=template-factory.js.map
 
 /**
  * @license
@@ -49495,7 +49486,6 @@ const render = (result, container, options) => {
     part.setValue(result);
     part.commit();
 };
-//# sourceMappingURL=render.js.map
 
 /**
  * @license
@@ -49519,7 +49509,6 @@ const render = (result, container, options) => {
  * render to and update a container.
  */
 const html = (strings, ...values) => new TemplateResult(strings, values, 'html', defaultTemplateProcessor);
-//# sourceMappingURL=lit-html.js.map
 
 /**
  * @license
@@ -49644,7 +49633,6 @@ function insertNodeIntoTemplate(template, node, refNode = null) {
         }
     }
 }
-//# sourceMappingURL=modify-template.js.map
 
 /**
  * @license
@@ -49914,7 +49902,6 @@ const render$1 = (result, container, options) => {
         window.ShadyCSS.styleElement(container.host);
     }
 };
-//# sourceMappingURL=shady-render.js.map
 
 /**
  * @license
@@ -50514,7 +50501,6 @@ class UpdatingElement extends HTMLElement {
  * Marks class as having finished creating properties.
  */
 UpdatingElement.finalized = true;
-//# sourceMappingURL=updating-element.js.map
 
 /**
  * @license
@@ -50614,7 +50600,6 @@ function property(options) {
         legacyProperty(options, protoOrDescriptor, name) :
         standardProperty(options, protoOrDescriptor);
 }
-//# sourceMappingURL=decorators.js.map
 
 /**
 @license
@@ -50628,7 +50613,6 @@ found at http://polymer.github.io/PATENTS.txt
 */
 const supportsAdoptingStyleSheets = ('adoptedStyleSheets' in Document.prototype) &&
     ('replace' in CSSStyleSheet.prototype);
-//# sourceMappingURL=css-tag.js.map
 
 /**
  * @license
@@ -50821,7 +50805,6 @@ LitElement.finalized = true;
  * @nocollapse
  */
 LitElement.render = render$1;
-//# sourceMappingURL=lit-element.js.map
 
 function asyncGeneratorStep(gen, resolve, reject, _next, _throw, key, arg) {
   try {
@@ -51108,6 +51091,28 @@ function _asyncToGenerator$1(fn) {
   };
 }
 
+class FenceManager {
+  constructor(numFences) {
+    console.assert(numFences > 0);
+    this.fences = new Array(numFences);
+    this.currentFence = 0;
+  }
+
+  drawWithFence(gl, drawFn) {
+    var fence = this.fences[this.currentFence];
+
+    if (fence && gl.getSyncParameter(fence, gl.SYNC_STATUS) === gl.UNSIGNALED) {
+      console.log("dropped frame");
+      return;
+    }
+
+    drawFn();
+    this.fences[this.currentFence] = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+    this.currentFence = (this.currentFence + 1) % this.fences.length;
+  }
+
+}
+
 class Point {
   constructor(state) {
     this.x = state.x;
@@ -51261,9 +51266,92 @@ class Rectangle {
 
 }
 
+var REQUEST_NONE = {
+  type: "none"
+};
+var REQUEST_FULL = {
+  type: "full"
+};
+class RenderRequestManager {
+  constructor() {
+    this.request = REQUEST_NONE;
+  }
+
+  reset() {
+    this.request = REQUEST_NONE;
+  }
+
+  render() {
+    this.request = REQUEST_FULL;
+  }
+
+  renderWithScissor(scissorRect) {
+    if (this.request.type == "none") {
+      this.request = {
+        type: "scissor",
+        area: scissorRectToRect(scissorRect)
+      };
+    } else if (this.request.type == "scissor") {
+      var currentArea = this.request.area;
+      var newArea = scissorRectToRect(scissorRect);
+      this.request = {
+        type: "scissor",
+        area: currentArea.union(newArea)
+      };
+    } // Do nothing if it's already full
+
+  }
+
+  getRotated(clientWidth, clientHeight, rotation) {
+    if (this.request.type == "scissor") {
+      return rotateScissorRect(this.request.area, clientWidth, clientHeight, rotation);
+    }
+
+    return null;
+  }
+
+}
+
+function scissorRectToRect(scissorRect) {
+  var rect = Rectangle.fromDimensions(scissorRect.width, scissorRect.height);
+  return rect.shift({
+    x: scissorRect.x,
+    y: scissorRect.y
+  });
+}
+
+function rotateScissorRect(rect, clientWidth, clientHeight, rotation) {
+  switch (rotation) {
+    case 0:
+      return rect;
+
+    case 90:
+      return rect.rotate(-rotation * Math.PI / 180).shift({
+        x: 0,
+        y: clientWidth
+      });
+
+    case 180:
+      return rect.rotate(-rotation * Math.PI / 180).shift({
+        x: clientWidth,
+        y: clientHeight
+      });
+
+    case 270:
+      return rect.rotate(-rotation * Math.PI / 180).shift({
+        x: clientHeight,
+        y: 0
+      });
+  }
+
+  throw new Error("unsupported rotation: ".concat(rotation));
+}
+
 class ThreeCanvas {
   constructor(canvas) {
     this.canvas = canvas;
+    this.fenceManager = new FenceManager(2);
+    this.renderRequestManager = new RenderRequestManager();
     this.gl = canvas.getContext('webgl2', {
       alpha: false,
       desynchronized: true,
@@ -51285,22 +51373,37 @@ class ThreeCanvas {
   }
 
   renderWithScissor(screenRect) {
-    var {
-      rotation,
-      clientWidth,
-      clientHeight
-    } = this.canvas;
-    var rect = rotateScissorRect(screenRect, clientWidth, clientHeight, rotation);
-    this.renderer.setScissorTest(true);
-    this.renderer.setScissor(rect.min.x, rect.min.y, rect.width, rect.height);
-    this.render();
-    this.renderer.setScissorTest(false);
+    this.renderRequestManager.renderWithScissor(screenRect);
+    this.fenceManager.drawWithFence(this.gl, () => {
+      this.renderInternal();
+    });
   }
 
   render() {
+    this.renderRequestManager.render();
+    this.fenceManager.drawWithFence(this.gl, () => {
+      this.renderInternal();
+    });
+  }
+
+  renderInternal() {
+    if (this.renderRequestManager.request.type == "scissor") {
+      var {
+        rotation,
+        clientWidth,
+        clientHeight
+      } = this.canvas;
+      var rect = this.renderRequestManager.getRotated(clientWidth, clientHeight, rotation);
+      this.renderer.setScissorTest(true);
+      this.renderer.setScissor(rect.min.x, rect.min.y, rect.width, rect.height);
+    } else {
+      this.renderer.setScissorTest(false);
+    }
+
     this.renderer.render(this.scene, this.camera); // Must call flush ourselves when using desynchronized
 
     this.gl.flush();
+    this.renderRequestManager.reset();
   }
 
   setCameraBounds(x, y, width, height) {
@@ -51317,7 +51420,7 @@ function createRenderer(gl, width, height) {
     canvas: gl.canvas,
     context: gl,
     alpha: false,
-    clearColor: 0xFF0000
+    clearColor: 0x000000
   }); // TODO why isn't clearColor recognized?
 
   renderer.setPixelRatio(window.devicePixelRatio);
@@ -51348,39 +51451,6 @@ function createCamera(x, y, width, height, rotation) {
   camera.lookAt(new Vector3(center.x, center.y, 0));
   camera.setRotationFromAxisAngle(new Vector3(0, 0, 1), rotation * Math.PI / 180);
   return camera;
-}
-
-function rotateScissorRect(scissorRect, clientWidth, clientHeight, rotation) {
-  var radians = -rotation * Math.PI / 180;
-  var rect = Rectangle.fromDimensions(scissorRect.width, scissorRect.height).shift({
-    x: scissorRect.x,
-    y: scissorRect.y
-  });
-
-  switch (rotation) {
-    case 0:
-      return rect;
-
-    case 90:
-      return rect.rotate(-rotation * Math.PI / 180).shift({
-        x: 0,
-        y: clientWidth
-      });
-
-    case 180:
-      return rect.rotate(-rotation * Math.PI / 180).shift({
-        x: clientWidth,
-        y: clientHeight
-      });
-
-    case 270:
-      return rect.rotate(-rotation * Math.PI / 180).shift({
-        x: clientHeight,
-        y: 0
-      });
-  }
-
-  throw new Error("unsupported rotation: ".concat(rotation));
 }
 
 function rotateDimensions$1(width, height, rotation) {
@@ -51439,21 +51509,36 @@ async function main() {
     const line2 = new Line( geometry2, material );
     tc.scene.add(line2);
 
-    const INCR = 5;
-    let position = INCR;
-    function draw() {
+    draw(tc);
+    log();
+}
+
+async function draw(tc) {
+    const INCR = 1;
+    for(let position = INCR; position <= 400; position += INCR) {
+        await sleep(1);
         tc.renderWithScissor({
             x: position-INCR,
             y: 200,
             width: INCR+1,
             height: 200,
         });
-        if(position <= 400) {
-            position += INCR;
-            requestAnimationFrame(draw);
-        }
     }
-    requestAnimationFrame(draw);
+    console.log("done w/ draw!");
+}
+
+async function log() {
+    const INCR = 1;
+    for(let position = INCR; position <= 400; position += INCR) {
+        await sleep(1);
+    }
+    console.log("done w/ log!");
+}
+
+function sleep(ms) {
+    return new Promise((resolve, reject) => {
+        setTimeout(resolve, ms);
+    });
 }
 
 main();

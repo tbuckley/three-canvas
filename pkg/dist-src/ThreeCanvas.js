@@ -1,8 +1,11 @@
 import * as THREE from 'three';
-import Rectangle from './geometry/Rectangle.js';
+import FenceManager from './FenceManager.js';
+import { RenderRequestManager } from './ScissorRect';
 export default class ThreeCanvas {
     constructor(canvas) {
         this.canvas = canvas;
+        this.fenceManager = new FenceManager(2);
+        this.renderRequestManager = new RenderRequestManager();
         this.gl = canvas.getContext('webgl2', {
             alpha: false,
             desynchronized: true,
@@ -21,17 +24,31 @@ export default class ThreeCanvas {
         });
     }
     renderWithScissor(screenRect) {
-        const { rotation, clientWidth, clientHeight } = this.canvas;
-        const rect = rotateScissorRect(screenRect, clientWidth, clientHeight, rotation);
-        this.renderer.setScissorTest(true);
-        this.renderer.setScissor(rect.min.x, rect.min.y, rect.width, rect.height);
-        this.render();
-        this.renderer.setScissorTest(false);
+        this.renderRequestManager.renderWithScissor(screenRect);
+        this.fenceManager.drawWithFence(this.gl, () => {
+            this.renderInternal();
+        });
     }
     render() {
+        this.renderRequestManager.render();
+        this.fenceManager.drawWithFence(this.gl, () => {
+            this.renderInternal();
+        });
+    }
+    renderInternal() {
+        if (this.renderRequestManager.request.type == "scissor") {
+            const { rotation, clientWidth, clientHeight } = this.canvas;
+            const rect = this.renderRequestManager.getRotated(clientWidth, clientHeight, rotation);
+            this.renderer.setScissorTest(true);
+            this.renderer.setScissor(rect.min.x, rect.min.y, rect.width, rect.height);
+        }
+        else {
+            this.renderer.setScissorTest(false);
+        }
         this.renderer.render(this.scene, this.camera);
         // Must call flush ourselves when using desynchronized
         this.gl.flush();
+        this.renderRequestManager.reset();
     }
     setCameraBounds(x, y, width, height) {
         const { rotation } = this.canvas;
@@ -55,7 +72,7 @@ function createScene() {
     scene.background = new THREE.Color(0xffffff);
     return scene;
 }
-export function createCamera(x, y, width, height, rotation) {
+function createCamera(x, y, width, height, rotation) {
     // Rotate width/height if needed
     if (rotation == 90 || rotation == 270) {
         [height, width] = [width, height];
@@ -70,31 +87,6 @@ export function createCamera(x, y, width, height, rotation) {
     camera.lookAt(new THREE.Vector3(center.x, center.y, 0));
     camera.setRotationFromAxisAngle(new THREE.Vector3(0, 0, 1), rotation * Math.PI / 180);
     return camera;
-}
-function rotateScissorRect(scissorRect, clientWidth, clientHeight, rotation) {
-    const radians = -rotation * Math.PI / 180;
-    let rect = Rectangle.fromDimensions(scissorRect.width, scissorRect.height)
-        .shift({
-        x: scissorRect.x,
-        y: scissorRect.y,
-    });
-    switch (rotation) {
-        case 0:
-            return rect;
-        case 90:
-            return rect
-                .rotate(-rotation * Math.PI / 180)
-                .shift({ x: 0, y: clientWidth });
-        case 180:
-            return rect
-                .rotate(-rotation * Math.PI / 180)
-                .shift({ x: clientWidth, y: clientHeight });
-        case 270:
-            return rect
-                .rotate(-rotation * Math.PI / 180)
-                .shift({ x: clientHeight, y: 0 });
-    }
-    throw new Error(`unsupported rotation: ${rotation}`);
 }
 function rotateDimensions(width, height, rotation) {
     if (rotation == 90 || rotation == 270) {

@@ -36,6 +36,28 @@ function _asyncToGenerator(fn) {
   };
 }
 
+class FenceManager {
+  constructor(numFences) {
+    console.assert(numFences > 0);
+    this.fences = new Array(numFences);
+    this.currentFence = 0;
+  }
+
+  drawWithFence(gl, drawFn) {
+    var fence = this.fences[this.currentFence];
+
+    if (fence && gl.getSyncParameter(fence, gl.SYNC_STATUS) === gl.UNSIGNALED) {
+      console.log("dropped frame");
+      return;
+    }
+
+    drawFn();
+    this.fences[this.currentFence] = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+    this.currentFence = (this.currentFence + 1) % this.fences.length;
+  }
+
+}
+
 class Point {
   constructor(state) {
     this.x = state.x;
@@ -189,9 +211,92 @@ class Rectangle {
 
 }
 
+var REQUEST_NONE = {
+  type: "none"
+};
+var REQUEST_FULL = {
+  type: "full"
+};
+class RenderRequestManager {
+  constructor() {
+    this.request = REQUEST_NONE;
+  }
+
+  reset() {
+    this.request = REQUEST_NONE;
+  }
+
+  render() {
+    this.request = REQUEST_FULL;
+  }
+
+  renderWithScissor(scissorRect) {
+    if (this.request.type == "none") {
+      this.request = {
+        type: "scissor",
+        area: scissorRectToRect(scissorRect)
+      };
+    } else if (this.request.type == "scissor") {
+      var currentArea = this.request.area;
+      var newArea = scissorRectToRect(scissorRect);
+      this.request = {
+        type: "scissor",
+        area: currentArea.union(newArea)
+      };
+    } // Do nothing if it's already full
+
+  }
+
+  getRotated(clientWidth, clientHeight, rotation) {
+    if (this.request.type == "scissor") {
+      return rotateScissorRect(this.request.area, clientWidth, clientHeight, rotation);
+    }
+
+    return null;
+  }
+
+}
+
+function scissorRectToRect(scissorRect) {
+  var rect = Rectangle.fromDimensions(scissorRect.width, scissorRect.height);
+  return rect.shift({
+    x: scissorRect.x,
+    y: scissorRect.y
+  });
+}
+
+function rotateScissorRect(rect, clientWidth, clientHeight, rotation) {
+  switch (rotation) {
+    case 0:
+      return rect;
+
+    case 90:
+      return rect.rotate(-rotation * Math.PI / 180).shift({
+        x: 0,
+        y: clientWidth
+      });
+
+    case 180:
+      return rect.rotate(-rotation * Math.PI / 180).shift({
+        x: clientWidth,
+        y: clientHeight
+      });
+
+    case 270:
+      return rect.rotate(-rotation * Math.PI / 180).shift({
+        x: clientHeight,
+        y: 0
+      });
+  }
+
+  throw new Error("unsupported rotation: ".concat(rotation));
+}
+
 class ThreeCanvas {
   constructor(canvas) {
     this.canvas = canvas;
+    this.fenceManager = new FenceManager(2);
+    this.renderRequestManager = new RenderRequestManager();
     this.gl = canvas.getContext('webgl2', {
       alpha: false,
       desynchronized: true,
@@ -213,22 +318,37 @@ class ThreeCanvas {
   }
 
   renderWithScissor(screenRect) {
-    var {
-      rotation,
-      clientWidth,
-      clientHeight
-    } = this.canvas;
-    var rect = rotateScissorRect(screenRect, clientWidth, clientHeight, rotation);
-    this.renderer.setScissorTest(true);
-    this.renderer.setScissor(rect.min.x, rect.min.y, rect.width, rect.height);
-    this.render();
-    this.renderer.setScissorTest(false);
+    this.renderRequestManager.renderWithScissor(screenRect);
+    this.fenceManager.drawWithFence(this.gl, () => {
+      this.renderInternal();
+    });
   }
 
   render() {
+    this.renderRequestManager.render();
+    this.fenceManager.drawWithFence(this.gl, () => {
+      this.renderInternal();
+    });
+  }
+
+  renderInternal() {
+    if (this.renderRequestManager.request.type == "scissor") {
+      var {
+        rotation,
+        clientWidth,
+        clientHeight
+      } = this.canvas;
+      var rect = this.renderRequestManager.getRotated(clientWidth, clientHeight, rotation);
+      this.renderer.setScissorTest(true);
+      this.renderer.setScissor(rect.min.x, rect.min.y, rect.width, rect.height);
+    } else {
+      this.renderer.setScissorTest(false);
+    }
+
     this.renderer.render(this.scene, this.camera); // Must call flush ourselves when using desynchronized
 
     this.gl.flush();
+    this.renderRequestManager.reset();
   }
 
   setCameraBounds(x, y, width, height) {
@@ -276,39 +396,6 @@ function createCamera(x, y, width, height, rotation) {
   camera.lookAt(new Vector3(center.x, center.y, 0));
   camera.setRotationFromAxisAngle(new Vector3(0, 0, 1), rotation * Math.PI / 180);
   return camera;
-}
-
-function rotateScissorRect(scissorRect, clientWidth, clientHeight, rotation) {
-  var radians = -rotation * Math.PI / 180;
-  var rect = Rectangle.fromDimensions(scissorRect.width, scissorRect.height).shift({
-    x: scissorRect.x,
-    y: scissorRect.y
-  });
-
-  switch (rotation) {
-    case 0:
-      return rect;
-
-    case 90:
-      return rect.rotate(-rotation * Math.PI / 180).shift({
-        x: 0,
-        y: clientWidth
-      });
-
-    case 180:
-      return rect.rotate(-rotation * Math.PI / 180).shift({
-        x: clientWidth,
-        y: clientHeight
-      });
-
-    case 270:
-      return rect.rotate(-rotation * Math.PI / 180).shift({
-        x: clientHeight,
-        y: 0
-      });
-  }
-
-  throw new Error("unsupported rotation: ".concat(rotation));
 }
 
 function rotateDimensions(width, height, rotation) {

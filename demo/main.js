@@ -37,21 +37,36 @@ async function main() {
     const line2 = new THREE.Line( geometry2, material );
     tc.scene.add(line2);
 
-    const INCR = 5;
-    let position = INCR;
-    function draw() {
+    draw(tc);
+    log();
+}
+
+async function draw(tc) {
+    const INCR = 1;
+    for(let position = INCR; position <= 400; position += INCR) {
+        await sleep(1);
         tc.renderWithScissor({
             x: position-INCR,
             y: 200,
             width: INCR+1,
             height: 200,
         });
-        if(position <= 400) {
-            position += INCR;
-            requestAnimationFrame(draw);
-        }
     }
-    requestAnimationFrame(draw);
+    console.log("done w/ draw!");
+}
+
+async function log() {
+    const INCR = 1;
+    for(let position = INCR; position <= 400; position += INCR) {
+        await sleep(1);
+    }
+    console.log("done w/ log!");
+}
+
+function sleep(ms) {
+    return new Promise((resolve, reject) => {
+        setTimeout(resolve, ms);
+    });
 }
 
 main();
