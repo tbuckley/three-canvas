@@ -1,19 +1,27 @@
 import * as THREE from 'three';
 import FenceManager from './FenceManager.js';
-import { RenderRequestManager } from './ScissorRect';
+import { RenderRequestManager } from './ScissorRect.js';
+const DEFAULT_OPTIONS = {
+    numFences: 2,
+    alpha: false,
+};
 export default class ThreeCanvas {
-    constructor(canvas) {
+    constructor(canvas, options) {
+        let fullOptions = DEFAULT_OPTIONS;
+        if (options) {
+            fullOptions = { ...fullOptions, ...options };
+        }
         this.canvas = canvas;
-        this.fenceManager = new FenceManager(2);
+        this.fenceManager = new FenceManager(fullOptions.numFences);
         this.renderRequestManager = new RenderRequestManager();
         this.gl = canvas.getContext('webgl2', {
-            alpha: false,
+            alpha: fullOptions.alpha,
             desynchronized: true,
             preserveDrawingBuffer: true,
         });
         this.renderer = createRenderer(this.gl, canvas.width, canvas.height);
         this.scene = createScene();
-        this.camera = createCamera(-1, -1, 2, 2, 0);
+        this.camera = createCamera(-1, -1, 2, 2, canvas.rotation);
         canvas.addEventListener('canvas-rotate', () => {
             // Rotate the camera
             const { rotation } = this.canvas;

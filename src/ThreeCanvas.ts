@@ -2,7 +2,17 @@ import StylusCanvas from 'stylus-canvas';
 import * as THREE from 'three';
 
 import FenceManager from './FenceManager.js';
-import { ScissorRect, RenderRequestManager } from './ScissorRect';
+import { ScissorRect, RenderRequestManager } from './ScissorRect.js';
+
+export interface ThreeCanvasOptions {
+  numFences: number;
+  alpha: boolean;
+}
+
+const DEFAULT_OPTIONS: ThreeCanvasOptions = {
+  numFences: 2,
+  alpha: false,
+};
 
 export default class ThreeCanvas {
   private gl: WebGL2RenderingContext;
@@ -15,21 +25,26 @@ export default class ThreeCanvas {
   scene: THREE.Scene;
   camera: THREE.Camera;
 
-  constructor(canvas: StylusCanvas) {
+  constructor(canvas: StylusCanvas, options?: Partial<ThreeCanvasOptions>) {
+    let fullOptions = DEFAULT_OPTIONS;
+    if(options) {
+      fullOptions = {...fullOptions, ...options};
+    }
+
     this.canvas = canvas;
 
-    this.fenceManager = new FenceManager(2);
+    this.fenceManager = new FenceManager(fullOptions.numFences);
     this.renderRequestManager = new RenderRequestManager();
 
     this.gl = canvas.getContext('webgl2', {
-      alpha: false, // TODO make optional
+      alpha: fullOptions.alpha,
       desynchronized: true,
       preserveDrawingBuffer: true,
     }) as WebGL2RenderingContext;
 
     this.renderer = createRenderer(this.gl, canvas.width, canvas.height);
     this.scene = createScene();
-    this.camera = createCamera(-1, -1, 2, 2, 0);
+    this.camera = createCamera(-1, -1, 2, 2, canvas.rotation);
 
     canvas.addEventListener('canvas-rotate', () => {
       // Rotate the camera
@@ -84,7 +99,7 @@ function createRenderer(gl: WebGL2RenderingContext, width: number, height: numbe
   const renderer = new THREE.WebGLRenderer({
     canvas: gl.canvas,
     context: gl,
-    alpha: false,
+    alpha: false, // TODO set via options
     clearColor: 0x000000,
   } as any); // TODO why isn't clearColor recognized?
   renderer.setPixelRatio(window.devicePixelRatio);

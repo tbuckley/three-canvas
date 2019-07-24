@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import StylusCanvas from "stylus-canvas";
 import { createThreeCanvas } from "../pkg";
+import {SVGRenderer} from 'three/examples/jsm/renderers/SVGRenderer';
 
 const LEFT = -9;
 const RIGHT = 9;
@@ -8,13 +9,12 @@ const TOP = -9;
 const BOTTOM = 9;
 
 async function main() {
-    console.log(StylusCanvas);
-
+    window.foo = StylusCanvas;
     const canvas = document.querySelector("stylus-canvas");
     canvas.width = 400;
     canvas.height = 400;
 
-    const tc = await createThreeCanvas(canvas);
+    const tc = await createThreeCanvas(canvas, {numFences: 5, alpha: true});
     tc.setCameraBounds(-10, -10, 20, 20);
 
     const material = new THREE.LineBasicMaterial( { color: 0x0000ff } );
@@ -39,6 +39,11 @@ async function main() {
 
     draw(tc);
     log();
+
+    const sr = new SVGRenderer();
+    sr.setSize(canvas.width*window.devicePixelRatio, canvas.height*window.devicePixelRatio);
+    sr.render(tc.scene, tc.camera);
+    document.body.appendChild(sr.domElement);
 }
 
 async function draw(tc) {

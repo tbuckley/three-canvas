@@ -1,6 +1,10 @@
 import StylusCanvas from 'stylus-canvas';
 import * as THREE from 'three';
-import { ScissorRect } from './ScissorRect';
+import { ScissorRect } from './ScissorRect.js';
+export interface ThreeCanvasOptions {
+    numFences: number;
+    alpha: boolean;
+}
 export default class ThreeCanvas {
     private gl;
     private renderer;
@@ -9,7 +13,7 @@ export default class ThreeCanvas {
     private renderRequestManager;
     scene: THREE.Scene;
     camera: THREE.Camera;
-    constructor(canvas: StylusCanvas);
+    constructor(canvas: StylusCanvas, options?: Partial<ThreeCanvasOptions>);
     renderWithScissor(screenRect: ScissorRect): void;
     render(): void;
     private renderInternal;

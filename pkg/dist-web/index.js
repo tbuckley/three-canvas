@@ -36,6 +36,55 @@ function _asyncToGenerator(fn) {
   };
 }
 
+function _defineProperty(obj, key, value) {
+  if (key in obj) {
+    Object.defineProperty(obj, key, {
+      value: value,
+      enumerable: true,
+      configurable: true,
+      writable: true
+    });
+  } else {
+    obj[key] = value;
+  }
+
+  return obj;
+}
+
+function ownKeys(object, enumerableOnly) {
+  var keys = Object.keys(object);
+
+  if (Object.getOwnPropertySymbols) {
+    var symbols = Object.getOwnPropertySymbols(object);
+    if (enumerableOnly) symbols = symbols.filter(function (sym) {
+      return Object.getOwnPropertyDescriptor(object, sym).enumerable;
+    });
+    keys.push.apply(keys, symbols);
+  }
+
+  return keys;
+}
+
+function _objectSpread2(target) {
+  for (var i = 1; i < arguments.length; i++) {
+    var source = arguments[i] != null ? arguments[i] : {};
+
+    if (i % 2) {
+      ownKeys(source, true).forEach(function (key) {
+        _defineProperty(target, key, source[key]);
+      });
+    } else if (Object.getOwnPropertyDescriptors) {
+      Object.defineProperties(target, Object.getOwnPropertyDescriptors(source));
+    } else {
+      ownKeys(source).forEach(function (key) {
+        Object.defineProperty(target, key, Object.getOwnPropertyDescriptor(source, key));
+      });
+    }
+  }
+
+  return target;
+}
+
 class FenceManager {
   constructor(numFences) {
     console.assert(numFences > 0);
@@ -292,19 +341,29 @@ function rotateScissorRect(rect, clientWidth, clientHeight, rotation) {
   throw new Error("unsupported rotation: ".concat(rotation));
 }
 
+var DEFAULT_OPTIONS = {
+  numFences: 2,
+  alpha: false
+};
 class ThreeCanvas {
-  constructor(canvas) {
+  constructor(canvas, options) {
+    var fullOptions = DEFAULT_OPTIONS;
+
+    if (options) {
+      fullOptions = _objectSpread2({}, fullOptions, {}, options);
+    }
+
     this.canvas = canvas;
-    this.fenceManager = new FenceManager(2);
+    this.fenceManager = new FenceManager(fullOptions.numFences);
     this.renderRequestManager = new RenderRequestManager();
     this.gl = canvas.getContext('webgl2', {
-      alpha: false,
+      alpha: fullOptions.alpha,
       desynchronized: true,
       preserveDrawingBuffer: true
     });
     this.renderer = createRenderer(this.gl, canvas.width, canvas.height);
     this.scene = createScene();
-    this.camera = createCamera(-1, -1, 2, 2, 0);
+    this.camera = createCamera(-1, -1, 2, 2, canvas.rotation);
     canvas.addEventListener('canvas-rotate', () => {
       // Rotate the camera
       var {
@@ -406,15 +465,15 @@ function rotateDimensions(width, height, rotation) {
   return [width, height];
 }
 
-function createThreeCanvas(_x) {
+function createThreeCanvas(_x, _x2) {
   return _createThreeCanvas.apply(this, arguments);
 }
 
 function _createThreeCanvas() {
-  _createThreeCanvas = _asyncToGenerator(function* (canvas) {
+  _createThreeCanvas = _asyncToGenerator(function* (canvas, options) {
     yield customElements.whenDefined("stylus-canvas");
     yield canvas.updateComplete;
-    return new ThreeCanvas(canvas);
+    return new ThreeCanvas(canvas, options);
   });
   return _createThreeCanvas.apply(this, arguments);
 }
