@@ -1,6 +1,6 @@
 {
   "name": "@tbuckley89/three-canvas",
-  "version": "0.0.2",
+  "version": "0.1.0",
   "description": "Canvas for rendering Three.js scenes with low-latency.",
   "main": "src/index.ts",
   "@pika/pack": {
