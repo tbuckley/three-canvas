@@ -8,7 +8,7 @@ interface MemoizedResult {
     angle: number,
     outputCamera: OrthographicCamera,
 }
-function getCamera(camera: OrthographicCamera, angle: number): OrthographicCamera {
+function getRotatedCamera(camera: OrthographicCamera, angle: number): OrthographicCamera {
     if(angle === 0) {
         return camera;
     }
@@ -36,7 +36,7 @@ function getCameraMemoized(memoized: MemoizedResult | null, camera: Orthographic
         return memoized;
     }
     
-    const outputCamera = getCamera(camera, angle);
+    const outputCamera = getRotatedCamera(camera, angle);
     return {
         camera: camera,
         angle,
@@ -45,25 +45,36 @@ function getCameraMemoized(memoized: MemoizedResult | null, camera: Orthographic
 }
 
 export interface Context extends MWContext {
-    angle?: number;
+    panelAngle?: number;
 }
 
-export default function rotate(canvas: HTMLElement): Middleware {
+export default function panelOrientation(canvas: HTMLElement): Middleware {
     let angle = screen.orientation.angle;
     let memoized: MemoizedResult | null = null;
 
     screen.orientation.addEventListener("change", () => {
         angle = screen.orientation.angle;
         canvas.style.transform = `rotate(-${angle}deg)`;
+        // TODO resize
     });
 
     return {
         onRequest(ctx: Context) {
             memoized = getCameraMemoized(memoized, ctx.camera, angle);
             ctx.camera = memoized.outputCamera;
-            ctx.angle = angle;
+            ctx.panelAngle = angle;
             return ctx;
         },
         wrap() {},
     };
 }
+
+// Inform the renderer
+// const [width, height] = rotateDimensions(this.canvas.width, this.canvas.height, rotation);
+// this.renderer.setSize(width, height);
+// function rotateDimensions(width: number, height: number, rotation: number): [number, number] {
+//   if(rotation == 90 || rotation == 270) {
+//     return [height, width];
+//   }
+//   return [width, height];
+// }

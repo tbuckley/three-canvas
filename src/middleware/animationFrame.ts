@@ -1,25 +1,19 @@
-import { Middleware, Context as MWContext } from "./middleware";
-
-export interface Context extends MWContext {
-    immediate?: boolean;
-}
+import { Middleware } from "./middleware";
 
 export default function animationFrame(): Middleware {
     let requested = false;
     return {
-        onRequest(ctx: Context) {
+        onRequest(ctx) {
             return ctx;
         },
-        wrap(ctx: Context, render) {
-            if(ctx.immediate) {
-                render();
-            } else if(!requested) {
+        wrap(render) {
+            if(!requested) {
                 requested = true;
                 requestAnimationFrame(() => {
                     render();
                     requested = false;
                 });
             }
-        },
-    };
+        }
+    }
 }

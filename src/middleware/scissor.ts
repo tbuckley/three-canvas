@@ -1,4 +1,4 @@
-import { Middleware, Context as MWContext } from "./middleware";
+import { Middleware, Context as MWContext, RenderFn } from "./middleware";
 
 export interface Rect {x: number, y: number, width: number, height: number};
 export interface Context extends MWContext {
@@ -42,7 +42,9 @@ function merge(a: State, b: State): State {
     };
 }
 
-export default function scissor(): Middleware {
+export type ScissorFunc = (rect: Rect, render: RenderFn) => void;
+
+export default function scissor(scissorFunc: ScissorFunc): Middleware {
     let state: State = NONE_STATE;
     return {
         onRequest(ctx: Context): Context {
@@ -54,13 +56,9 @@ export default function scissor(): Middleware {
             return ctx;
         },
 
-        wrap(ctx, render) {
+        wrap(render) {
             if(state.type === "partial") {
-                const rect = state.rect;
-                ctx.renderer.setScissorTest(true);
-                ctx.renderer.setScissor(rect.x, rect.y, rect.width, rect.height);
-                render();
-                ctx.renderer.setScissorTest(false);
+                scissorFunc(state.rect, render);
             } else {
                 render();
             }
