@@ -1,8 +1,13 @@
-import { Middleware, Context as MWContext, RenderFn } from "./middleware";
+import { RenderFn } from "./RenderFn";
 
 export interface Rect {x: number, y: number, width: number, height: number};
-export interface Context extends MWContext {
+export interface Context {
     rect?: Rect;
+}
+
+export type ScissorFunc = (rect: Rect, render: RenderFn) => void;
+export interface Config {
+    scissorFunc: ScissorFunc;
 }
 
 type State =
@@ -42,28 +47,31 @@ function merge(a: State, b: State): State {
     };
 }
 
-export type ScissorFunc = (rect: Rect, render: RenderFn) => void;
 
-export default function scissor(scissorFunc: ScissorFunc): Middleware {
-    let state: State = NONE_STATE;
-    return {
-        onRequest(ctx: Context): Context {
-            if(ctx.rect) {
-                state = merge(state, {type: "partial", rect: ctx.rect});
-            } else {
-                state = merge(state, FULL_STATE);
-            }
-            return ctx;
-        },
+export default class ScissorManager {
+    config: Config;
+    state: State = NONE_STATE;
+    
+    constructor(config: Config) {
+        this.config = config;
+    }
 
-        wrap(render) {
-            if(state.type === "partial") {
-                scissorFunc(state.rect, render);
-            } else {
-                render();
-            }
-            
-            state = NONE_STATE;
-        },
+    onRequest(ctx: Context): Context {
+        if(ctx.rect) {
+            this.state = merge(this.state, {type: "partial", rect: ctx.rect});
+        } else {
+            this.state = FULL_STATE;
+        }
+        return ctx;
+    }
+
+    wrap(render: RenderFn) {
+        if(this.state.type === "partial") {
+            this.config.scissorFunc(this.state.rect, render);
+        } else {
+            render();
+        }
+        
+        this.state = NONE_STATE;
     }
 }
