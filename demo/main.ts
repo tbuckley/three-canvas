@@ -1,7 +1,7 @@
 import * as THREE from "three";
-import { createRenderer, getContext, createScene, createCamera, createThreeConfig } from "../src/threejs";
-import { createRenderFunc } from "../src/createRenderFunc";
-import { Context } from "../src/createRenderFunc/scissor";
+import { createRenderer, getContext, createCamera, createThreeConfig } from "../src/threejs";
+import createRenderFunc from "../src/createRenderFunc";
+import { Context } from "../src/createRenderFunc";
 import { Scene } from "three";
 
 const LEFT = -9;
@@ -10,7 +10,7 @@ const TOP = -9;
 const BOTTOM = 9;
 
 function loadScene1(scene: Scene) {
-    const material = new THREE.LineBasicMaterial( { color: 0x0000ff } );
+    const material = new THREE.LineBasicMaterial( { color: 0xffff00 } );
     const geometry = new THREE.Geometry();
 
     geometry.vertices.push(new THREE.Vector3( LEFT, 0, 0) );
@@ -21,7 +21,7 @@ function loadScene1(scene: Scene) {
     scene.add(line);
 }
 function loadScene2(scene: Scene) {
-    const material = new THREE.LineBasicMaterial( { color: 0x0000ff } );
+    const material = new THREE.LineBasicMaterial( { color: 0xffff00 } );
     const geometry = new THREE.Geometry();
 
     geometry.vertices.push(new THREE.Vector3( RIGHT, 0, 0) );
@@ -33,52 +33,30 @@ function loadScene2(scene: Scene) {
 }
 
 class SceneManager {
-    render: (ctx: Context) => void;
+    render: (ctx: Context) => Promise<void>;
 
     constructor(canvas: HTMLCanvasElement) {
-        const gl = getContext(canvas, false);
-        const renderer = createRenderer(gl, false);
-        const scene = createScene();
+        const gl = getContext(canvas, true);
+        const renderer = createRenderer(gl, true);
+        const scene = new Scene();
         const camera = createCamera(-10, -10, 20, 20);
 
-        renderer.setSize(500, 300);
+        renderer.setSize(400, 400);
         renderer.setPixelRatio(window.devicePixelRatio);
 
-        // this.render = createRenderFunc(createThreeConfig({
-        //     gl,
-        //     renderer,
-        // }), () => {
-        //     renderer.render(scene, camera);
-        // });
-        this.render = (ctx: any) => {
-            console.log("render!");
+        this.render = createRenderFunc(createThreeConfig({
+            gl,
+            renderer,
+            numFences: 5,
+        }), () => {
             renderer.render(scene, camera);
-        };
-        // renderer.render(scene, camera);
-        // renderer.setClearColor(new THREE.Color(255,0,0));
-        // renderer.clearColor();
-        console.log(gl.getError());
-        gl.clearColor(0, 1.0, 1.0, 1.0);
-        gl.clear(gl.COLOR_BUFFER_BIT);
-        gl.flush();
-        gl.clearColor(0, 1.0, 1.0, 1.0);
-        gl.clear(gl.COLOR_BUFFER_BIT);
-        gl.flush();
-        gl.clearColor(0, 1.0, 1.0, 1.0);
-        gl.clear(gl.COLOR_BUFFER_BIT);
-        gl.flush();
-        gl.clearColor(0, 1.0, 1.0, 0.0);
-        gl.clear(gl.COLOR_BUFFER_BIT);
-        gl.flush();
-        console.log(gl.getError(), gl.getContextAttributes());
-        console.log("cleared to red");
+        });
 
-        // loadScene1(scene);
-        // this.render({});
+        loadScene1(scene);
+        this.render({immediate: true});
 
-        // loadScene2(scene);
-        // this.draw();
-        // log();
+        loadScene2(scene);
+        this.draw();
     }
 
     async draw() {
@@ -92,18 +70,11 @@ class SceneManager {
                     width: INCR+1,
                     height: 200,
                 },
+                immediate: true,
             });
         }
         console.log("done w/ draw!");
     }
-}
-
-async function log() {
-    const INCR = 1;
-    for(let position = INCR; position <= 400; position += INCR) {
-        await sleep(1);
-    }
-    console.log("done w/ log!");
 }
 
 function sleep(ms: number) {

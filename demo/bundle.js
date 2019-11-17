@@ -48409,6 +48409,22 @@
 
 	};
 
+	function scissor(renderer) {
+	    return function (rect, render) {
+	        console.log("scissor", rect);
+	        renderer.setScissorTest(true);
+	        renderer.setScissor(rect.x, rect.y, rect.width, rect.height);
+	        render();
+	        renderer.setScissorTest(false);
+	    };
+	}
+
+	function createThreeConfig(config) {
+	    return {
+	        scissorFunc: scissor(config.renderer),
+	        ...config,
+	    };
+	}
 	function getContext(canvas, alpha) {
 	    return canvas.getContext('webgl2', {
 	        alpha: alpha,
@@ -48426,11 +48442,6 @@
 	    renderer.autoClear = false;
 	    return renderer;
 	}
-	function createScene() {
-	    const scene = new Scene();
-	    scene.background = new Color(0xffffff);
-	    return scene;
-	}
 	function createCamera(x, y, width, height) {
 	    const center = {
 	        x: x + (width / 2),
@@ -48443,47 +48454,177 @@
 	    return camera;
 	}
 
+	class AnimationFrameMiddleware {
+	    constructor() {
+	        this.requested = null;
+	    }
+	    wrap(ctx, render) {
+	        if (ctx.immediate) {
+	            render();
+	            if (this.requested !== null) {
+	                cancelAnimationFrame(this.requested);
+	                this.requested = null;
+	            }
+	        }
+	        else if (this.requested === null) {
+	            this.requested = requestAnimationFrame(() => {
+	                render();
+	                this.requested = null;
+	            });
+	        }
+	    }
+	}
+
+	const DEFAULT_FENCES = 2;
+	class FenceManager {
+	    constructor(config) {
+	        console.assert(config.gl !== null && config.gl !== undefined);
+	        this.config = config;
+	        this.fences = new Array(config.numFences || DEFAULT_FENCES);
+	        this.currentFence = 0;
+	    }
+	    wrap(render) {
+	        const gl = this.config.gl;
+	        const fence = this.fences[this.currentFence];
+	        if (fence && gl.getSyncParameter(fence, gl.SYNC_STATUS) === gl.UNSIGNALED) {
+	            if (this.config.logDroppedFrame) {
+	                this.config.logDroppedFrame();
+	            }
+	            return;
+	        }
+	        render();
+	        this.fences[this.currentFence] = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+	        this.currentFence = (this.currentFence + 1) % this.fences.length;
+	    }
+	}
+
+	class FlushManager {
+	    constructor(config) {
+	        console.assert(config.gl !== null && config.gl !== undefined);
+	        this.config = config;
+	    }
+	    wrap(render) {
+	        render();
+	        this.config.gl.flush();
+	    }
+	}
+
+	const NONE_STATE = { type: "none" };
+	const FULL_STATE = { type: "full" };
+	function mergeRect(a, b) {
+	    const minx = Math.min(a.x, b.x);
+	    const miny = Math.min(a.y, b.y);
+	    const maxx = Math.max(a.x + a.width, b.x + b.width);
+	    const maxy = Math.max(a.y + a.height, b.y + b.height);
+	    return {
+	        x: minx,
+	        y: miny,
+	        width: maxx - minx,
+	        height: maxy - miny,
+	    };
+	}
+	function merge(a, b) {
+	    if (a.type === "none") {
+	        return b;
+	    }
+	    if (b.type === "none") {
+	        return a;
+	    }
+	    if (a.type === "full" || b.type === "full") {
+	        return FULL_STATE;
+	    }
+	    return {
+	        type: "partial",
+	        rect: mergeRect(a.rect, b.rect),
+	    };
+	}
+	class ScissorManager {
+	    constructor(config) {
+	        this.state = NONE_STATE;
+	        this.config = config;
+	    }
+	    onRequest(ctx) {
+	        console.log("ScissorManager, ctx: ", ctx);
+	        if (ctx.rect) {
+	            this.state = merge(this.state, { type: "partial", rect: ctx.rect });
+	        }
+	        else {
+	            this.state = FULL_STATE;
+	        }
+	        return ctx;
+	    }
+	    wrap(render) {
+	        if (this.state.type === "partial") {
+	            this.config.scissorFunc(this.state.rect, render);
+	        }
+	        else {
+	            render();
+	        }
+	        this.state = NONE_STATE;
+	    }
+	}
+
+	function createRenderFunc(config, render) {
+	    const animationFrame = new AnimationFrameMiddleware();
+	    const fence = new FenceManager(config);
+	    const scissor = new ScissorManager(config);
+	    const flush = new FlushManager(config);
+	    return function (ctx) {
+	        scissor.onRequest(ctx);
+	        return new Promise((resolve, reject) => {
+	            animationFrame.wrap(ctx, () => {
+	                fence.wrap(() => {
+	                    scissor.wrap(() => {
+	                        flush.wrap(render);
+	                    });
+	                });
+	                resolve();
+	            });
+	        });
+	    };
+	}
+
+	const LEFT = -9;
+	const RIGHT = 9;
+	const TOP = -9;
+	const BOTTOM = 9;
+	function loadScene1(scene) {
+	    const material = new LineBasicMaterial({ color: 0xffff00 });
+	    const geometry = new Geometry();
+	    geometry.vertices.push(new Vector3(LEFT, 0, 0));
+	    geometry.vertices.push(new Vector3(0, BOTTOM, 0));
+	    geometry.vertices.push(new Vector3(RIGHT, 0, 0));
+	    const line = new Line(geometry, material);
+	    scene.add(line);
+	}
+	function loadScene2(scene) {
+	    const material = new LineBasicMaterial({ color: 0xffff00 });
+	    const geometry = new Geometry();
+	    geometry.vertices.push(new Vector3(RIGHT, 0, 0));
+	    geometry.vertices.push(new Vector3(0, TOP, 0));
+	    geometry.vertices.push(new Vector3(LEFT, 0, 0));
+	    const line = new Line(geometry, material);
+	    scene.add(line);
+	}
 	class SceneManager {
 	    constructor(canvas) {
-	        const gl = getContext(canvas, false);
-	        const renderer = createRenderer(gl, false);
-	        const scene = createScene();
+	        const gl = getContext(canvas, true);
+	        const renderer = createRenderer(gl, true);
+	        const scene = new Scene();
 	        const camera = createCamera(-10, -10, 20, 20);
-	        renderer.setSize(500, 300);
+	        renderer.setSize(400, 400);
 	        renderer.setPixelRatio(window.devicePixelRatio);
-	        // this.render = createRenderFunc(createThreeConfig({
-	        //     gl,
-	        //     renderer,
-	        // }), () => {
-	        //     renderer.render(scene, camera);
-	        // });
-	        this.render = (ctx) => {
-	            console.log("render!");
+	        this.render = createRenderFunc(createThreeConfig({
+	            gl,
+	            renderer,
+	            numFences: 5,
+	        }), () => {
 	            renderer.render(scene, camera);
-	        };
-	        // renderer.render(scene, camera);
-	        // renderer.setClearColor(new THREE.Color(255,0,0));
-	        // renderer.clearColor();
-	        console.log(gl.getError());
-	        gl.clearColor(0, 1.0, 1.0, 1.0);
-	        gl.clear(gl.COLOR_BUFFER_BIT);
-	        gl.flush();
-	        gl.clearColor(0, 1.0, 1.0, 1.0);
-	        gl.clear(gl.COLOR_BUFFER_BIT);
-	        gl.flush();
-	        gl.clearColor(0, 1.0, 1.0, 1.0);
-	        gl.clear(gl.COLOR_BUFFER_BIT);
-	        gl.flush();
-	        gl.clearColor(0, 1.0, 1.0, 0.0);
-	        gl.clear(gl.COLOR_BUFFER_BIT);
-	        gl.flush();
-	        console.log(gl.getError(), gl.getContextAttributes());
-	        console.log("cleared to red");
-	        // loadScene1(scene);
-	        // this.render({});
-	        // loadScene2(scene);
-	        // this.draw();
-	        // log();
+	        });
+	        loadScene1(scene);
+	        this.render({ immediate: true });
+	        loadScene2(scene);
+	        this.draw();
 	    }
 	    async draw() {
 	        const INCR = 1;
@@ -48496,6 +48637,7 @@
 	                    width: INCR + 1,
 	                    height: 200,
 	                },
+	                immediate: true,
 	            });
 	        }
 	        console.log("done w/ draw!");

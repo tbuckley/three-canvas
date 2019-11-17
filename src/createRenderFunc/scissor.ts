@@ -57,6 +57,7 @@ export default class ScissorManager {
     }
 
     onRequest(ctx: Context): Context {
+        console.log("ScissorManager, ctx: ", ctx);
         if(ctx.rect) {
             this.state = merge(this.state, {type: "partial", rect: ctx.rect});
         } else {

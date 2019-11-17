@@ -5,12 +5,13 @@ import scissor from "./scissor";
 export interface Config {
     gl: WebGL2RenderingContext;
     renderer: WebGLRenderer;
+    numFences?: number;
 }
 
 export function createThreeConfig(config: Config): BaseConfig {
     return {
-        gl: config.gl,
         scissorFunc: scissor(config.renderer),
+        ...config,
     };
 }
 
@@ -31,12 +32,6 @@ export function createRenderer(gl: WebGL2RenderingContext, alpha: boolean): THRE
   } as any); // TODO why isn't clearColor recognized?
   renderer.autoClear = false;
   return renderer;
-}
-
-export function createScene(): THREE.Scene {
-  const scene = new Scene();
-  scene.background = new Color(0xffffff);
-  return scene;
 }
 
 export function createCamera(x: number, y: number, width: number, height: number): THREE.OrthographicCamera {

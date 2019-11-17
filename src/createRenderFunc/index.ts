@@ -7,7 +7,7 @@ import { RenderFn } from "./RenderFn";
 export type Config = FenceConfig & FlushConfig & ScissorConfig;
 export type Context = AnimationFrameContext & ScissorContext;
 
-export function createRenderFunc(config: Config, render: RenderFn): (ctx: Context) => void {
+export default function createRenderFunc(config: Config, render: RenderFn): (ctx: Context) => Promise<void> {
     const animationFrame = new AnimationFrameManager();
     const fence = new FenceManager(config);
     const scissor = new ScissorManager(config);
@@ -15,11 +15,14 @@ export function createRenderFunc(config: Config, render: RenderFn): (ctx: Contex
 
     return function(ctx: Context) {
         scissor.onRequest(ctx);
-        animationFrame.wrap(ctx, () => {
-            fence.wrap(() => {
-                scissor.wrap(() => {
-                    flush.wrap(render);
+        return new Promise((resolve, reject) => {
+            animationFrame.wrap(ctx, () => {
+                fence.wrap(() => {
+                    scissor.wrap(() => {
+                        flush.wrap(render);
+                    });
                 });
+                resolve();
             });
         });
     }
