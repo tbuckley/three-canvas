@@ -1,31 +1,4 @@
-import { OrthographicCamera, Scene, WebGLRenderer } from "three";
-import { Context, Middleware } from "./middleware/middleware";
 
-import MW from "./middleware";
-
-export type RenderFunc = (ctx: Context) => void;
-
-export const Middlewares = MW;
-
-export function createRenderFunc(...middleware: Middleware[]) {
-  return function(ctx: any) {
-    for(let mw of middleware) {
-      ctx = mw.onRequest(ctx);
-    }
-
-    const calls: {[id: number]: boolean} = {};
-    function loop(i: number) {
-      console.assert(!(i in calls), `Middleware at index ${i} should only be called once`);
-      calls[i] = true;
-      if(i < middleware.length) {
-        middleware[i].wrap(() => loop(i+1));
-      } else {
-        ctx.renderer.render(ctx.scene, ctx.camera);
-      }
-    }
-    loop(0);
-  }
-}
 
 // function getContext(canvas: HTMLCanvasElement, alpha: boolean) {
 //   return canvas.getContext('webgl2', {
