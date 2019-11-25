@@ -16,7 +16,7 @@
   "scripts": {
     "version": "npx @pika/pack build",
     "autobuild": "rollup -cw",
-    "start:dev": "sirv demo --single --dev",
+    "start:dev": "sirv demo2 --single --dev",
     "dev": "run-p start:dev autobuild"
   },
   "keywords": [],
