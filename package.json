@@ -21,7 +21,7 @@
   "license": "ISC",
   "dependencies": {
     "stylus-canvas": "^2.0.2",
-    "three": "^0.106.2"
+    "three": "^0.137.0"
   },
   "devDependencies": {
     "@pika/pack": "^0.4.0",
